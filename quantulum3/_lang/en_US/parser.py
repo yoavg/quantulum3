@@ -136,6 +136,8 @@ def extract_spellout_values(text):
             if not surface:  # or surface.lower() in reg.scales(lang):
                 continue
             curr = result = 0.0
+            last_scale_word = ""
+            prev_word = ""
             for word in surface.lower().split():
                 try:
                     scale, increment = (
@@ -152,6 +154,21 @@ def extract_spellout_values(text):
                     match = re.search(reg.numberwords_regex(), word)
                     scale, increment = reg.numberwords(lang)[match.group(0)]
                 if (
+                    word.lower() == "half"
+                ):  # special handling for "million/billion/trillion and a half"
+                    if last_scale_word == "million":
+                        scale, increment = (1, 500_000)
+                        if prev_word == "a":
+                            increment -= 1
+                    elif last_scale_word == "billion":
+                        scale, increment = (1, 500_000_000)
+                        if prev_word == "a":
+                            increment -= 1
+                    elif last_scale_word == "trillion":
+                        scale, increment = (1, 500_000_000_000)
+                        if prev_word == "a":
+                            increment -= 1
+                if (
                     scale > 0
                     and increment == 0
                     and curr == 0.0
@@ -160,7 +177,7 @@ def extract_spellout_values(text):
                 ):  # "million" in the beginning
                     increment = scale
                     scale = 0.0
-                # one hundred and five million --> curr 5.0 result 100.0 scale 1M increment 0
+                # one hundred and five million: curr 5 result 100 scale 1M increment 0
                 # --> curr: 105, results: 0, scale 1M, increment 0
                 if scale > result > 0:
                     curr = curr + result
@@ -169,6 +186,9 @@ def extract_spellout_values(text):
                 if scale > 100 or word == "and":
                     result += curr
                     curr = 0.0
+                if word in reg.scales(lang):
+                    last_scale_word = word
+                prev_word = word
             values.append(
                 {
                     "old_surface": surface,
